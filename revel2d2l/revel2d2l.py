@@ -24,7 +24,8 @@ logger.setLevel(logging.WARNING)
 
 defaults = {
     'input': 'non-weighted course_assessments download.csv',
-    'output': 'revel2d2l_out.csv',
+    'output': f"{myself}_out.csv",
+    'users': None,
     'similarity': 0.75,
     'eol': '#',
     'revel': 'Quiz',
@@ -40,6 +41,7 @@ def main():
         monist.config = configure()
         configure_logging()
         logger.debug(monist.config)
+        report_configuration()
         action()
     except Exception as e:
         logger.error(f"Fatal: {e}")
@@ -231,24 +233,13 @@ def spreadsheet2df(filename):
 
 
 def configure():
-    """Create a ChainMap: command line options, config file."""
+    """Create a ChainMap: command line options, config file, defaults."""
     maps = list()
     maps.append({k: v for k, v in vars(cmdline()).items() if v is not None})
     maps.append(yaml_conf())
     maps.append(defaults)
     cm = collections.ChainMap(*maps)
     return cm
-
-
-def configure_logging():
-    if monist.config['debug']:
-        monist.config['verbose'] = True
-
-    logger.setLevel(logging.INFO) if monist.config['verbose'] else None
-    logger.setLevel(logging.DEBUG) if monist.config['debug'] else None
-
-    if monist.config['Log']:
-        logger.addHandler(logging.FileHandler(monist.config['logfile']))
 
 
 def cmdline():
@@ -290,21 +281,18 @@ def cmdline():
         '-i', '--input',
         help='Revel grades input csv file (csv)',
         metavar='F',
-        type=valid_csv,
     )
 
     parser.add_argument(
         '-u', '--users',
         help='D2L users file (csv or xlsx; any grade item works)',
         metavar='F',
-        type=valid_csv_xlsx,
     )
 
     parser.add_argument(
         '-o', '--output',
         help=f"D2L output file (default: {defaults['output']})",
         metavar='F',
-        type=valid_csv,
     )
 
     parser.add_argument(
@@ -317,7 +305,7 @@ def cmdline():
     parser.add_argument(
         '-E', '--eol',
         help=f"D2L end-of-line indicator (default: '{defaults['eol']}')",
-        metavar='EOL',
+        metavar='STR',
     )
 
     parser.add_argument(
@@ -340,28 +328,39 @@ def cmdline():
         metavar='F',
     )
 
+    parser.add_argument(
+        '-C', '--configuration',
+        help='Report configuration values and exit',
+        action='store_true',
+    )
+
     args = parser.parse_args()
 
     return args
-
-
-def valid_csv(filename):
-    x = filename.lower()  # Case insensitive filename extension validation
-    if not x.endswith('.csv'):
-        raise argparse.ArgumentTypeError(f"{filename} mut be csv")
-    return filename
-
-
-def valid_csv_xlsx(filename):
-    x = filename.lower()  # Case insensitive filename extension validation
-    if not (x.endswith('.csv') or x.endswith('.xlsx')):
-        raise argparse.ArgumentTypeError(f"{filename} must be csv or xlsx")
-    return filename
 
 
 def yaml_conf(file=os.path.expanduser(f"~/.{myself}.yaml")):
     return yaml.safe_load(open(file)) if os.path.isfile(file) else dict()
 
 
+def configure_logging():
+    if monist.config['debug']:
+        monist.config['verbose'] = True
+
+    logger.setLevel(logging.INFO) if monist.config['verbose'] else None
+    logger.setLevel(logging.DEBUG) if monist.config['debug'] else None
+
+    if monist.config['Log']:
+        logger.addHandler(logging.FileHandler(monist.config['logfile']))
+
+
+def report_configuration():
+    """Print the active configuration as yaml."""
+    result = {k: monist.config[k] for k in defaults.keys()}
+    if monist.config['configuration']:
+        print(yaml.dump(result))
+        exit()
+
+        
 if __name__ == '__main__':
     main()
