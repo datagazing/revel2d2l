@@ -32,6 +32,7 @@ Examples
 .. code-block:: console
 
   revel2d2l -h  # Print usage message and exit
+
   revel2d2l -v -i revel.csv -u d2l_users.xlsx -o upload_this_to_d2l_grades.csv
 
 License
