@@ -10,6 +10,7 @@ import sys
 import tempfile
 
 import Levenshtein
+import monist
 import pandas
 import pandasql
 import yaml
@@ -21,19 +22,44 @@ logging.basicConfig(format=format)
 logger = logging.getLogger(myself)
 logger.setLevel(logging.WARNING)
 
+defaults = {
+    'input': 'non-weighted course_assessments download.csv',
+    'output': 'revel2d2l_out.csv',
+    'similarity': 0.75,
+    'eol': '#',
+    'revel': 'Quiz',
+    'verbose': False,
+    'debug': False,
+    'Log': False,
+    'logfile': f"{myself}_log.txt",
+}
+
 
 def main():
-    config = configure()
-    logger.debug(config)
+    try:
+        monist.config = configure()
+        configure_logging()
+        logger.debug(monist.config)
+        action()
+    except Exception as e:
+        logger.error(f"Fatal: {e}")
+        if monist.config['debug']:
+            raise
+        else:
+            logger.warning('Run with -h for usage instructions')
+            exit()
+    logger.info('Completed without error')
 
-    logger.info(f"Users lookup file: {config['users']}")
-    logger.info(f"Input file: {config['input']}")
-    logger.info(f"Output file: {config['output']}")
+
+def action():
+    logger.info(f"Users lookup file: {monist.config['users']}")
+    logger.info(f"Input file: {monist.config['input']}")
+    logger.info(f"Output file: {monist.config['output']}")
 
     # Drop the first and third rows of the Revel input file
     with tempfile.NamedTemporaryFile(suffix='.csv') as tmp:
         logger.debug(f"Temporary file = {tmp.name}")
-        lines = open(config['input']).read().split('\n')
+        lines = open(monist.config['input']).read().split('\n')
         logger.debug(f"Read {len(lines)} lines")
 
         # Drop the first (index 0) and third (index 2) lines
@@ -51,7 +77,7 @@ def main():
     input = revel_rename(input)
     logger.debug(list(input))
 
-    if not config['users']:
+    if not monist.config['users']:
         # If no users file is supplied, summarize Revel input file and exit
         logger.info('No users file provided')
         logger.info('Summarizing Revel input file...')
@@ -61,7 +87,7 @@ def main():
         logger.info(f"Items: {', '.join(cols[4:])}")
         sys.exit(0)
 
-    users = spreadsheet2df(config['users'])
+    users = spreadsheet2df(monist.config['users'])
 
     logger.debug(f"Users file shape: {users.shape}")
     users['fullname'] = users['First Name'] + ' ' + users['Last Name']
@@ -79,19 +105,20 @@ def main():
             df=input,
             fullname=fullname,
             email=user['Email'],
-            threshold=config['similarity'],
+            threshold=monist.config['similarity'],
         )
 
         if revel_row is None:
             logger.warning(f"No match for {fullname}")
             logger.warning(f"Setting {fullname} scores all to 0")
             revel_row = {
-                k: 0 for k in list(input) if re.search(config['revel'], k)
+                k: 0 for k in list(input)
+                if re.search(monist.config['revel'], k)
             }
         else:
             revel_row = {
                 k: v for k, v in revel_row.items()
-                if re.search(config['revel'], k)
+                if re.search(monist.config['revel'], k)
             }
 
         revel_row = {f"{k} Points Grade": v for k, v in revel_row.items()}
@@ -102,7 +129,7 @@ def main():
         outrow['First Name'] = user['First Name']
         outrow['Last Name'] = user['Last Name']
         outrow = {**outrow, **revel_row}
-        outrow['End-of-Line Indicator'] = config['eol']
+        outrow['End-of-Line Indicator'] = monist.config['eol']
         logger.debug(f"Output row = {outrow}")
         output_rows.append(outrow)
 
@@ -110,10 +137,10 @@ def main():
     # OrgDefinedId Username surname name Assignment End-of-Line Indicator
 
     output = pandas.DataFrame(output_rows)
-    logger.debug(f"Writing output file: '{config['output']}' ...")
-    output.to_csv(config['output'], index=False)
+    logger.debug(f"Writing output file: '{monist.config['output']}' ...")
+    output.to_csv(monist.config['output'], index=False)
     logger.info(f"Shape of output: {output.shape}")
-    logger.info(f"Wrote output file: {config['output']}")
+    logger.info(f"Wrote output file: {monist.config['output']}")
 
 
 def revel_rename(df):
@@ -208,9 +235,20 @@ def configure():
     maps = list()
     maps.append({k: v for k, v in vars(cmdline()).items() if v is not None})
     maps.append(yaml_conf())
-    # maps.append()  # defaults
+    maps.append(defaults)
     cm = collections.ChainMap(*maps)
     return cm
+
+
+def configure_logging():
+    if monist.config['debug']:
+        monist.config['verbose'] = True
+
+    logger.setLevel(logging.INFO) if monist.config['verbose'] else None
+    logger.setLevel(logging.DEBUG) if monist.config['debug'] else None
+
+    if monist.config['Log']:
+        logger.addHandler(logging.FileHandler(monist.config['logfile']))
 
 
 def cmdline():
@@ -231,19 +269,28 @@ def cmdline():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
-    help = 'set loglevel to INFO'
-    parser.add_argument('-v', '--verbose', action='store_true', help=help)
+    parser.add_argument(
+        '-v', '--verbose',
+        help='set loglevel to INFO',
+        action='store_const',
+        const=True,
+        default=None,
+    )
 
-    help = 'set loglevel to DEBUG'
-    parser.add_argument('-d', '--debug', action='store_true', help=help)
+    parser.add_argument(
+        '-d', '--debug',
+        help='set loglevel to DEBUG',
+        action='store_const',
+        const=True,
+        default=None,
+    )
 
-    default = 'non-weighted course_assessments download.csv'
+
     parser.add_argument(
         '-i', '--input',
         help='Revel grades input csv file (csv)',
         metavar='F',
         type=valid_csv,
-        default=default,
     )
 
     parser.add_argument(
@@ -253,57 +300,47 @@ def cmdline():
         type=valid_csv_xlsx,
     )
 
-    default = f"{myself}_out.csv"
     parser.add_argument(
         '-o', '--output',
-        help=f"D2L output file (default: {default})",
+        help=f"D2L output file (default: {defaults['output']})",
         metavar='F',
         type=valid_csv,
-        default=default,
     )
 
     parser.add_argument(
         '-S', '--similarity',
-        help='Similarity threshold between 0 and 1 (default: .75)',
+        help=f"Similarity threshold (default: {defaults['similarity']})",
         metavar='N',
         type=float,
-        default=.75,
     )
 
     parser.add_argument(
         '-E', '--eol',
-        help='''D2L end-of-line indicator (default: '#')''',
+        help=f"D2L end-of-line indicator (default: '{defaults['eol']}')",
         metavar='EOL',
-        default='#',
     )
 
     parser.add_argument(
         '-R', '--revel',
-        help='''Revel assignments; regex (default: 'Quiz')''',
+        help=f"Revel assignments; regex (default: '{defaults['revel']}')",
         metavar='RE',
-        default=r'Quiz',
     )
 
-    logfile = f"{myself}_log.txt"
     parser.add_argument(
         '-L', '--Log',
-        help=f"Log to file also ({logfile})",
-        action='store_true',
+        help=f"Log to file also",
+        action='store_const',
+        const=True,
+        default=None,
+    )
+
+    parser.add_argument(
+        '--logfile',
+        help=f"Log file name ({defaults['logfile']})",
+        metavar='F',
     )
 
     args = parser.parse_args()
-
-    if not args.input:
-        parser.print_help()
-        sys.exit(1)
-
-    args.verbose = True if args.debug else args.verbose
-
-    logger.setLevel(logging.INFO) if args.verbose else None
-    logger.setLevel(logging.DEBUG) if args.debug else None
-
-    if args.Log:
-        logger.addHandler(logging.FileHandler(logfile))
 
     return args
 

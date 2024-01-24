@@ -9,6 +9,8 @@ Features
 * Default options should probably just work, apart from which files to process
 * See the command line utility usage message for description of heuristics
 * The script is quiet apart from warnings by default (use -v for more info)
+* Options can be specified in a yaml config file: ~/.revel2d2l.yaml
+    * The most useful of which might be the users file
 
 Examples
 --------
@@ -18,6 +20,10 @@ Examples
   revel2d2l -h  # Print usage message and exit
 
   revel2d2l -v -i revel.csv -u d2l_users.xlsx -o upload_this_to_d2l_grades.csv
+
+.. code-block:: yaml
+
+  users: '~/Some Place/users.xlsx'
 
 License
 -------
