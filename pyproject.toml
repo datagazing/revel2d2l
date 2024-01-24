@@ -10,7 +10,7 @@ home-page = "https://github.com/datagazing/revel2d2l"
 classifiers = [ "License :: OSI Approved :: MIT License",]
 description-file = "README.rst"
 requires-python = ">=3.7"
-requires = ["Levenshtein", "pandas", "pandasql", "PyYAML"]
+requires = ["Levenshtein", "monist", "pandas", "pandasql", "PyYAML"]
 
 [tool.flit.scripts]
 #xscript = "xmodule:xfunction"
