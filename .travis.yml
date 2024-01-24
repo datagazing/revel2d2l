@@ -1,0 +1,17 @@
+# Config file for automatic testing at travis-ci.com
+
+language: python
+python:
+  - 3.9
+  - 3.8
+  - 3.7
+
+# Command to install dependencies, e.g. pip install -r requirements.txt --use-mirrors
+install:
+    - pip install -U tox-travis
+    - if [[ $TRAVIS_PYTHON_VERSION == '3.7' ]]; then pip install twine; pip install importlib-metadata>=1; fi
+
+# Command to run tests, e.g. python setup.py test
+script: tox
+
+

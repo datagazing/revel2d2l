@@ -1,0 +1,17 @@
+[build-system]
+requires = ["flit_core >=2,<4"]
+build-backend = "flit_core.buildapi"
+
+[tool.flit.metadata]
+module = "revel2d2l"
+author = "Brendan Strejcek"
+author-email = "brendan@datagazing.com"
+home-page = "https://github.com/datagazing/revel2d2l"
+classifiers = [ "License :: OSI Approved :: MIT License",]
+description-file = "README.rst"
+requires-python = ">=3.7"
+requires = ["Levenshtein", "pandas", "pandasql", "PyYAML"]
+
+[tool.flit.scripts]
+#xscript = "xmodule:xfunction"
+revel2d2l = "revel2d2l:main"
